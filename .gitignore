@@ -1,0 +1,19 @@
+# Python virtual environment
+venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Database files
+*.db
+
+# Secret keys / API keys
+.env
+
+# React frontend files later
+node_modules/
+dist/
+
+# Mac system files
+.DS_Store
