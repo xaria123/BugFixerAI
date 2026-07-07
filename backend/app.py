@@ -1,8 +1,32 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import sqlite3
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
+
+DATABASE_NAME = "bugfixer.db"
+
+
+def create_database():
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS debug_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_code TEXT NOT NULL,
+            error_message TEXT NOT NULL,
+            bug_type TEXT NOT NULL,
+            explanation TEXT NOT NULL,
+            fixed_code TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    conn.commit()
+    conn.close()
 
 
 def classify_bug(error_message):
@@ -69,6 +93,25 @@ def suggest_fix(code, bug_type):
     else:
         return "# BugFixerAI could not suggest an exact fix yet.\n\n" + code
 
+def save_debug_session(code, error_message, bug_type, explanation, fixed_code):
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO debug_sessions
+        (original_code, error_message, bug_type, explanation, fixed_code, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        code,
+        error_message,
+        bug_type,
+        explanation,
+        fixed_code,
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ))
+
+    conn.commit()
+    conn.close()
 
 @app.route("/")
 def home():
@@ -93,12 +136,43 @@ def debug_code():
     explanation = explain_bug(bug_type)
     fixed_code = suggest_fix(code, bug_type)
 
+    save_debug_session(code, error_message, bug_type, explanation, fixed_code)
+
     return jsonify({
         "bug_type": bug_type,
         "explanation": explanation,
         "fixed_code": fixed_code
     })
 
+@app.route("/api/history", methods=["GET"])
+def get_history():
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, bug_type, original_code, error_message, explanation, fixed_code, created_at
+        FROM debug_sessions
+        ORDER BY id DESC
+    """)
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    history = []
+
+    for row in rows:
+        history.append({
+            "id": row[0],
+            "bug_type": row[1],
+            "original_code": row[2],
+            "error_message": row[3],
+            "explanation": row[4],
+            "fixed_code": row[5],
+            "created_at": row[6]
+        })
+
+    return jsonify(history)
 
 if __name__ == "__main__":
+    create_database()
     app.run(debug=True)
