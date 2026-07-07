@@ -41,6 +41,35 @@ def explain_bug(bug_type):
         return "BugFixerAI could not detect the exact bug type yet."
 
 
+def suggest_fix(code, bug_type):
+    if bug_type == "IndexError":
+        return (
+            "# Suggested fix: check if the list is empty first\n\n"
+            "def get_first(lst):\n"
+            "    if len(lst) == 0:\n"
+            "        return None\n"
+            "    return lst[0]"
+        )
+
+    elif bug_type == "NameError":
+        return "# Suggested fix: check that all variable names are spelled correctly\n\n" + code
+
+    elif bug_type == "TypeError":
+        return "# Suggested fix: make sure values are the correct type before using them together\n\n" + code
+
+    elif bug_type == "SyntaxError":
+        return "# Suggested fix: check for missing colons, quotes, or parentheses\n\n" + code
+
+    elif bug_type == "KeyError":
+        return "# Suggested fix: check if the key exists before accessing it\n\n" + code
+
+    elif bug_type == "IndentationError":
+        return "# Suggested fix: make sure your indentation is consistent\n\n" + code
+
+    else:
+        return "# BugFixerAI could not suggest an exact fix yet.\n\n" + code
+
+
 @app.route("/")
 def home():
     return jsonify({
@@ -62,10 +91,12 @@ def debug_code():
 
     bug_type = classify_bug(error_message)
     explanation = explain_bug(bug_type)
+    fixed_code = suggest_fix(code, bug_type)
 
     return jsonify({
         "bug_type": bug_type,
-        "explanation": explanation
+        "explanation": explanation,
+        "fixed_code": fixed_code
     })
 
 
