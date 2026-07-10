@@ -30,6 +30,7 @@ def create_database():
     conn.commit()
     conn.close()
 
+
 def extract_line_number(error_message):
     match = re.search(r"line (\d+)", error_message)
 
@@ -37,6 +38,7 @@ def extract_line_number(error_message):
         return int(match.group(1))
 
     return None
+
 
 def analyze_code_structure(code):
     try:
@@ -60,6 +62,7 @@ def analyze_code_structure(code):
             "function_names": [],
             "function_count": 0
         }
+
 
 def classify_bug(error_message):
     error_message = error_message.lower()
@@ -97,33 +100,145 @@ def explain_bug(bug_type):
         return "BugFixerAI could not detect the exact bug type yet."
 
 
-def suggest_fix(code, bug_type):
+def suggest_fix(code, bug_type, error_message):
     if bug_type == "IndexError":
+        match = re.search(r"^(\s*)return\s+(\w+)\[0\]", code, re.MULTILINE)
+
+        if match:
+            indent = match.group(1)
+            list_name = match.group(2)
+
+            return re.sub(
+                r"^(\s*)return\s+(\w+)\[0\]",
+                f"{indent}if len({list_name}) == 0:\n"
+                f"{indent}    return None\n"
+                f"{indent}return {list_name}[0]",
+                code,
+                flags=re.MULTILINE
+            )
+
         return (
-            "# Suggested fix: check if the list is empty first\n\n"
-            "def get_first(lst):\n"
-            "    if len(lst) == 0:\n"
-            "        return None\n"
-            "    return lst[0]"
+            "# Suggested fix: check that the list has enough items before using an index.\n\n"
+            + code
+        )
+
+    elif bug_type == "TypeError":
+        match = re.search(r"\+\s*(\w+)\s*\+", code)
+
+        if match and "str" in error_message.lower():
+            variable_name = match.group(1)
+
+            return code.replace(
+                f"+ {variable_name} +",
+                f"+ str({variable_name}) +"
+            )
+
+        return (
+            "# Suggested fix: make sure both values are the same type before using them together.\n"
+            "# Example: convert numbers to strings with str(value), or convert strings to numbers with int(value).\n\n"
+            + code
         )
 
     elif bug_type == "NameError":
-        return "# Suggested fix: check that all variable names are spelled correctly\n\n" + code
+        match = re.search(r"name '(\w+)' is not defined", error_message)
 
-    elif bug_type == "TypeError":
-        return "# Suggested fix: make sure values are the correct type before using them together\n\n" + code
+        if match:
+            missing_name = match.group(1)
+            function_match = re.search(r"def\s+(\w+)\(\):", code)
 
-    elif bug_type == "SyntaxError":
-        return "# Suggested fix: check for missing colons, quotes, or parentheses\n\n" + code
+            if function_match:
+                function_name = function_match.group(1)
+
+                fixed_code = code.replace(
+                    f"def {function_name}():",
+                    f"def {function_name}({missing_name}):"
+                )
+
+                fixed_code = fixed_code.replace(
+                    f"{function_name}()",
+                    f'{function_name}("Example")'
+                )
+
+                return fixed_code
+
+            return (
+                f"# Suggested fix: define '{missing_name}' before using it.\n\n"
+                f'{missing_name} = "Example"\n\n'
+                + code
+            )
+
+        return (
+            "# Suggested fix: check that your variable is defined before you use it.\n\n"
+            + code
+        )
 
     elif bug_type == "KeyError":
-        return "# Suggested fix: check if the key exists before accessing it\n\n" + code
+        match = re.search(r"KeyError:\s*['\"](.+?)['\"]", error_message)
+
+        if match:
+            missing_key = match.group(1)
+
+            fixed_code = re.sub(
+                rf"(\w+)\[['\"]{missing_key}['\"]\]",
+                rf'\1.get("{missing_key}")',
+                code
+            )
+
+            return fixed_code
+
+        return (
+            "# Suggested fix: use dictionary.get(key) or check if the key exists first.\n\n"
+            + code
+        )
+
+    elif bug_type == "SyntaxError":
+        fixed_lines = []
+
+        for line in code.split("\n"):
+            stripped_line = line.strip()
+
+            needs_colon = (
+                stripped_line.startswith("def ")
+                or stripped_line.startswith("if ")
+                or stripped_line.startswith("for ")
+                or stripped_line.startswith("while ")
+                or stripped_line.startswith("elif ")
+                or stripped_line.startswith("else")
+            )
+
+            if needs_colon and not stripped_line.endswith(":"):
+                fixed_lines.append(line + ":")
+            else:
+                fixed_lines.append(line)
+
+        return "\n".join(fixed_lines)
 
     elif bug_type == "IndentationError":
-        return "# Suggested fix: make sure your indentation is consistent\n\n" + code
+        lines = code.split("\n")
+        fixed_lines = []
+        should_indent_next_line = False
+
+        for line in lines:
+            stripped_line = line.strip()
+
+            if should_indent_next_line and stripped_line and not line.startswith(" "):
+                fixed_lines.append("    " + stripped_line)
+                should_indent_next_line = False
+            else:
+                fixed_lines.append(line)
+                should_indent_next_line = False
+
+            if stripped_line.endswith(":"):
+                should_indent_next_line = True
+
+        return "\n".join(fixed_lines)
 
     else:
-        return "# BugFixerAI could not suggest an exact fix yet.\n\n" + code
+        return (
+            "# BugFixerAI could not suggest an exact fix yet.\n\n"
+            + code
+        )
+
 
 def save_debug_session(code, error_message, bug_type, explanation, fixed_code):
     conn = sqlite3.connect(DATABASE_NAME)
@@ -144,6 +259,7 @@ def save_debug_session(code, error_message, bug_type, explanation, fixed_code):
 
     conn.commit()
     conn.close()
+
 
 @app.route("/")
 def home():
@@ -166,7 +282,7 @@ def debug_code():
 
     bug_type = classify_bug(error_message)
     explanation = explain_bug(bug_type)
-    fixed_code = suggest_fix(code, bug_type)
+    fixed_code = suggest_fix(code, bug_type, error_message)
     line_number = extract_line_number(error_message)
     code_analysis = analyze_code_structure(code)
 
@@ -179,6 +295,7 @@ def debug_code():
         "fixed_code": fixed_code,
         "code_analysis": code_analysis
     })
+
 
 @app.route("/api/history", methods=["GET"])
 def get_history():
@@ -208,6 +325,7 @@ def get_history():
         })
 
     return jsonify(history)
+
 
 if __name__ == "__main__":
     create_database()
