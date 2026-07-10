@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
+import re
 from datetime import datetime
 
 app = Flask(__name__)
@@ -28,6 +29,13 @@ def create_database():
     conn.commit()
     conn.close()
 
+def extract_line_number(error_message):
+    match = re.search(r"line (\d+)", error_message)
+
+    if match:
+        return int(match.group(1))
+
+    return None
 
 def classify_bug(error_message):
     error_message = error_message.lower()
@@ -135,11 +143,13 @@ def debug_code():
     bug_type = classify_bug(error_message)
     explanation = explain_bug(bug_type)
     fixed_code = suggest_fix(code, bug_type)
+    line_number = extract_line_number(error_message)
 
     save_debug_session(code, error_message, bug_type, explanation, fixed_code)
 
     return jsonify({
         "bug_type": bug_type,
+        "line_number": line_number,
         "explanation": explanation,
         "fixed_code": fixed_code
     })
