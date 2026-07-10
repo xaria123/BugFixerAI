@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import sqlite3
 import re
+import ast
 from datetime import datetime
 
 app = Flask(__name__)
@@ -36,6 +37,29 @@ def extract_line_number(error_message):
         return int(match.group(1))
 
     return None
+
+def analyze_code_structure(code):
+    try:
+        tree = ast.parse(code)
+
+        function_names = []
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                function_names.append(node.name)
+
+        return {
+            "is_valid_python": True,
+            "function_names": function_names,
+            "function_count": len(function_names)
+        }
+
+    except SyntaxError:
+        return {
+            "is_valid_python": False,
+            "function_names": [],
+            "function_count": 0
+        }
 
 def classify_bug(error_message):
     error_message = error_message.lower()
@@ -144,6 +168,7 @@ def debug_code():
     explanation = explain_bug(bug_type)
     fixed_code = suggest_fix(code, bug_type)
     line_number = extract_line_number(error_message)
+    code_analysis = analyze_code_structure(code)
 
     save_debug_session(code, error_message, bug_type, explanation, fixed_code)
 
@@ -151,7 +176,8 @@ def debug_code():
         "bug_type": bug_type,
         "line_number": line_number,
         "explanation": explanation,
-        "fixed_code": fixed_code
+        "fixed_code": fixed_code,
+        "code_analysis": code_analysis
     })
 
 @app.route("/api/history", methods=["GET"])
