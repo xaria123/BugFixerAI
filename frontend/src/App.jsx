@@ -5,6 +5,7 @@ function App() {
   const [code, setCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [result, setResult] = useState(null);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
 
   async function handleDebug() {
@@ -32,6 +33,17 @@ function App() {
     }
 
     setLoading(false);
+  }
+
+    async function loadHistory() {
+    try {
+      const response = await fetch("http://127.0.0.1:5000/api/history");
+      const data = await response.json();
+
+      setHistory(data);
+    } catch (error) {
+      setHistory([]);
+    }
   }
 
   return (
@@ -82,6 +94,32 @@ function App() {
           )}
         </div>
       )}
+
+      <div className="history-section">
+        <button onClick={loadHistory}>Load History</button>
+
+        {history.length > 0 && (
+          <div className="history-list">
+            <h2>Debugging History</h2>
+
+            {history.map((item) => (
+              <div className="history-card" key={item.id}>
+                <h3>{item.bug_type}</h3>
+                <p className="date">{item.created_at}</p>
+
+                <h4>Original Code</h4>
+                <pre>{item.original_code}</pre>
+
+                <h4>Error Message</h4>
+                <p>{item.error_message}</p>
+
+                <h4>Suggested Fix</h4>
+                <pre>{item.fixed_code}</pre>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
