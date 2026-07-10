@@ -85,6 +85,25 @@ function App() {
               <h3>Bug Type</h3>
               <p>{result.bug_type}</p>
 
+              <h3>Problem Line</h3>
+              <p>{result.line_number ? `Line ${result.line_number}` : "No line number detected"}</p>
+
+              {result.code_analysis && (
+                <>
+                  <h3>Code Analysis</h3>
+                  <p>
+                    Valid Python: {result.code_analysis.is_valid_python ? "Yes" : "No"}
+                  </p>
+                  <p>Function Count: {result.code_analysis.function_count}</p>
+                  <p>
+                    Detected Functions:{" "}
+                    {result.code_analysis.function_names.length > 0
+                      ? result.code_analysis.function_names.join(", ")
+                      : "None"}
+                  </p>
+                </>
+              )}
+
               <h3>Explanation</h3>
               <p>{result.explanation}</p>
 
