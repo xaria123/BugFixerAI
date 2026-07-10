@@ -6,6 +6,7 @@ function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
+  const [historyMessage, setHistoryMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleDebug() {
@@ -36,13 +37,17 @@ function App() {
   }
 
     async function loadHistory() {
+    setHistoryMessage("Loading history...");
+
     try {
       const response = await fetch("http://127.0.0.1:5000/api/history");
       const data = await response.json();
 
-      setHistory(data);
+      setHistory(data.slice(0, 5));
+      setHistoryMessage(`Showing latest ${Math.min(data.length, 5)} debug sessions.`);
     } catch (error) {
       setHistory([]);
+      setHistoryMessage("Could not load history. Make sure the backend is running.");
     }
   }
 
@@ -116,6 +121,7 @@ function App() {
 
       <div className="history-section">
         <button onClick={loadHistory}>Load History</button>
+        {historyMessage && <p className="date">{historyMessage}</p>}
 
         {history.length > 0 && (
           <div className="history-list">
